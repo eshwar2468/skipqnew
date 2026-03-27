@@ -41,6 +41,7 @@ app.use(cors({
     process.env.CLIENT_URL || 'http://localhost:3001',
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://beta.skipqapp.com',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

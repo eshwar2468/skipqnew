@@ -28,17 +28,27 @@ RUN npm ci
 # Copy application code
 COPY . .
 
+# Build args for Vite env vars (set at build time)
+ARG VITE_API_URL
+ARG VITE_SOCKET_URL
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
+
 # Build the React app
 RUN npm run build
 
 # Production Stage
 FROM nginx:alpine AS prod
 
+# Install envsubst (part of gettext)
+RUN apk add --no-cache gettext
+
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx config template
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copy built files from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
@@ -46,9 +56,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Expose port
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/health.html || exit 1
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Use envsubst to replace env vars in nginx config at runtime, then start nginx
+CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
