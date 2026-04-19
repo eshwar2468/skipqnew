@@ -610,7 +610,7 @@ export default function Menu() {
                 placeholder="Search menu items..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border-2 border-dashed border-orange-100 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-primary bg-orange-50/30"
+                className="w-full pl-10 pr-4 py-3 border-2 border-dashed border-orange-100 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-primary bg-orange-50/30 text-base text-gray-900"
               />
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">

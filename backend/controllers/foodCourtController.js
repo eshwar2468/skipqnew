@@ -452,14 +452,16 @@ const createFoodCourtOrder = asyncHandler(async (req, res) => {
       quantity: item.quantity,
       customizations: item.customizations || [],
       restaurantId: menuItem.restaurant,
-      restaurantName: (await Restaurant.findById(menuItem.restaurant)).name,
+      restaurantName: ((await Restaurant.findById(menuItem.restaurant)) || {}).name || 'Unknown Restaurant',
     });
   }
 
   // Calculate tax (use 5% as default or average of restaurant tax rates)
   const taxRate = 5; // default 5%
   const tax = Math.round((subtotal * taxRate) / 100);
-  const total = subtotal + tax;
+  // Convenience fee: Rs 10 + 18% GST = Rs 11.80
+  const convenienceFee = 11.80;
+  const total = subtotal + tax + convenienceFee;
 
   // Generate order number with 'FC-' prefix
   const orderNumber = `FC-${Date.now()}`;
@@ -487,6 +489,7 @@ const createFoodCourtOrder = asyncHandler(async (req, res) => {
     orderType: 'dine_in',
     subtotal,
     tax,
+    convenienceFee,
     total,
     paymentMethod,
     specialInstructions: specialInstructions || '',
@@ -499,20 +502,24 @@ const createFoodCourtOrder = asyncHandler(async (req, res) => {
   await order.populate('customer', 'name email phone');
 
   // Notify each restaurant via Socket.IO
-  const io = req.app.get('io');
-  if (io) {
-    for (const rs of restaurantStatuses) {
-      const restaurantItems = orderItems.filter(
-        (i) => i.restaurantId.toString() === rs.restaurantId.toString()
-      );
-      io.emitNewOrder(rs.restaurantId.toString(), {
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        foodCourtName: foodCourt.name,
-        items: restaurantItems,
-        customer: { name: req.user.name || order.customer?.name },
-      });
+  try {
+    const io = req.app.get('io');
+    if (io && typeof io.emitNewOrder === 'function') {
+      for (const rs of restaurantStatuses) {
+        const restaurantItems = orderItems.filter(
+          (i) => i.restaurantId.toString() === rs.restaurantId.toString()
+        );
+        io.emitNewOrder(rs.restaurantId.toString(), {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          foodCourtName: foodCourt.name,
+          items: restaurantItems,
+          customer: { name: req.user.name || order.customer?.name },
+        });
+      }
     }
+  } catch (socketErr) {
+    console.error('Socket notification failed:', socketErr.message);
   }
 
   res.status(201).json({
@@ -598,22 +605,36 @@ const updateRestaurantStatus = asyncHandler(async (req, res) => {
   await order.save();
 
   // Send real-time notification to customer
-  const io = req.app.get('io');
-  if (io) {
-    // Notify the order room
-    io.emitOrderUpdate(order._id.toString(), order.status, {
-      restaurantId,
-      restaurantName: rsEntry.restaurantName,
-      restaurantStatus: status,
-      estimatedTime: rsEntry.estimatedTime,
-      restaurantStatuses: order.restaurantStatuses,
-    });
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      // Notify the order room
+      if (typeof io.emitOrderUpdate === 'function') {
+        io.emitOrderUpdate(order._id.toString(), order.status, {
+          restaurantId,
+          restaurantName: rsEntry.restaurantName,
+          restaurantStatus: status,
+          estimatedTime: rsEntry.estimatedTime,
+          restaurantStatuses: order.restaurantStatuses,
+        });
+      }
 
-    // If this restaurant's items are ready, send a specific "pickup ready" notification
-    if (status === 'ready') {
-      const customerSocketId = io.getSocketId(order.customer.toString());
-      if (customerSocketId) {
-        io.to(customerSocketId).emit('food_court_pickup_ready', {
+      // If this restaurant's items are ready, send a specific "pickup ready" notification
+      if (status === 'ready') {
+        if (typeof io.getSocketId === 'function') {
+          const customerSocketId = io.getSocketId(order.customer.toString());
+          if (customerSocketId) {
+            io.to(customerSocketId).emit('food_court_pickup_ready', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              restaurantName: rsEntry.restaurantName,
+              restaurantId,
+              message: `Your food from ${rsEntry.restaurantName} is ready for pickup at the counter!`,
+            });
+          }
+        }
+        // Also broadcast to the order room
+        io.to(`order_${order._id.toString()}`).emit('food_court_pickup_ready', {
           orderId: order._id,
           orderNumber: order.orderNumber,
           restaurantName: rsEntry.restaurantName,
@@ -621,15 +642,9 @@ const updateRestaurantStatus = asyncHandler(async (req, res) => {
           message: `Your food from ${rsEntry.restaurantName} is ready for pickup at the counter!`,
         });
       }
-      // Also broadcast to the order room
-      io.to(`order_${order._id.toString()}`).emit('food_court_pickup_ready', {
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        restaurantName: rsEntry.restaurantName,
-        restaurantId,
-        message: `Your food from ${rsEntry.restaurantName} is ready for pickup at the counter!`,
-      });
     }
+  } catch (socketErr) {
+    console.error('Socket notification failed:', socketErr.message);
   }
 
   res.status(200).json({

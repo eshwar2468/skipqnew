@@ -1,21 +1,3 @@
-# Development Stage
-FROM node:18-alpine AS dev
-
-WORKDIR /app
-
-# Install dependencies
-COPY package*.json ./
-RUN npm install
-
-# Copy application code
-COPY . .
-
-# Expose port (Vite default dev server port)
-EXPOSE 5173
-
-# Development server
-CMD ["npm", "run", "dev"]
-
 # Build Stage
 FROM node:18-alpine AS build
 
@@ -41,9 +23,6 @@ RUN npm run build
 # Production Stage
 FROM nginx:alpine AS prod
 
-# Install envsubst (part of gettext)
-RUN apk add --no-cache gettext
-
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
@@ -56,5 +35,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Expose port
 EXPOSE 80
 
-# Use envsubst to replace env vars in nginx config at runtime, then start nginx
-CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Use sed to replace placeholders with actual env vars at runtime, then start nginx
+CMD ["/bin/sh", "-c", "sed -e \"s|BACKEND_URL_PLACEHOLDER|$BACKEND_URL|g\" -e \"s|PORT_PLACEHOLDER|${PORT:-80}|g\" /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

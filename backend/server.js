@@ -120,7 +120,13 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+// Log server error events (e.g. EADDRINUSE, EACCES)
+server.on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Client URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);

@@ -81,8 +81,9 @@ export default function LoginPage() {
       const redirectPath = roleRedirects[user.role] || from;
       navigate(redirectPath);
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.message || 'Invalid email or password. Please try again.';
       toast.error(message);
+      setErrors({ email: ' ', password: message });
     } finally {
       setIsLoading(false);
     }
@@ -157,12 +158,13 @@ export default function LoginPage() {
                   <label className="block text-sm font-semibold text-gray-700">
                     Password
                   </label>
-                  <Link
-                    to="#"
+                  <button
+                    type="button"
+                    onClick={() => toast('Please contact your administrator to reset your password.', { icon: 'ℹ️' })}
                     className="text-sm text-primary hover:text-primary-dark transition-colors font-medium"
                   >
                     Forgot?
-                  </Link>
+                  </button>
                 </div>
                 <div className="relative group">
                   <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary transition-colors" />
@@ -251,14 +253,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Demo Credentials */}
-            <div className="mt-4 p-4 bg-primary/5 border-1 border-dashed border-primary rounded-[15px]">
-              <p className="text-sm font-semibold text-primary mb-2">Demo Credentials:</p>
-              <p className="text-xs text-gray-600">
-                Email: demo@example.com<br />
-                Password: password123
-              </p>
-            </div>
+            {/* Demo credentials removed for production */}
           </div>
         </div>
       </div>

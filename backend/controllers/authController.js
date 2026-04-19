@@ -424,8 +424,8 @@ const sendOTP = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate 6-digit OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate 6-digit OTP (use DEV_OTP env var if set, for testing without SMS gateway)
+  const otpCode = process.env.DEV_OTP || Math.floor(100000 + Math.random() * 900000).toString();
 
   // Delete any existing OTPs for this phone
   await OTP.deleteMany({ phone, purpose: 'login' });
@@ -441,8 +441,8 @@ const sendOTP = asyncHandler(async (req, res) => {
   // Check if user exists with this phone
   const existingUser = await User.findOne({ phone, role: { $in: ['customer', 'delivery_admin'] } });
 
-  // In production, integrate an SMS gateway (e.g. Twilio, MSG91, Fast2SMS)
-  // For development, log the OTP to console
+  // In production with SMS gateway, send OTP via SMS (e.g. Twilio, MSG91, Fast2SMS)
+  // For now, log the OTP to console and return in response when DEV_OTP is set
   console.log(`[OTP] ${phone}: ${otpCode}`);
 
   res.status(200).json({
@@ -451,8 +451,8 @@ const sendOTP = asyncHandler(async (req, res) => {
     data: {
       phone,
       isNewUser: !existingUser,
-      // Include OTP in response ONLY for development — remove in production
-      ...(process.env.NODE_ENV !== 'production' && { otp: otpCode }),
+      // Include OTP in response when DEV_OTP is set or in non-production
+      ...(( process.env.DEV_OTP || process.env.NODE_ENV !== 'production') && { otp: otpCode }),
     },
   });
 });
@@ -531,7 +531,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
     user = await User.create({
       name: name.trim(),
       phone,
-      email: `${phone}@skipq.user`, // Placeholder email for OTP-only users
+      email: `${phone}@skipq.app`, // Placeholder email for OTP-only users
       password: require('crypto').randomBytes(32).toString('hex'), // Random password — user logs in via OTP only
       role: 'customer',
       isVerified: true,

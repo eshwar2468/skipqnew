@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AreaChart,
   Area,
@@ -39,6 +40,7 @@ const DEFAULT_STATUS_COLOR = { bg: '#f3f4f6', text: '#374151', label: 'Unknown' 
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
     stats: {
@@ -79,26 +81,41 @@ export default function AdminDashboard() {
         rating: r.restaurantDetails?.[0]?.rating || 0,
       }));
 
-      // Generate revenue chart data (last 7 days)
-      const revenueData = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = format(date, 'MMM dd');
-
-        // In real scenario, you'd aggregate by day
-        revenueData.push({
-          date: dateStr,
-          revenue: Math.floor(Math.random() * 50000) + 10000,
-        });
+      // Generate revenue chart data (last 7 days) from actual backend data
+      let revenueData = [];
+      if (revenueByMonth && revenueByMonth.length > 0) {
+        revenueData = revenueByMonth.map((item) => ({
+          date: item.date || item._id || 'N/A',
+          revenue: item.revenue || item.total || 0,
+        }));
+      } else {
+        // Fallback: show last 7 days with zero revenue if no data
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dateStr = format(date, 'MMM dd');
+          revenueData.push({
+            date: dateStr,
+            revenue: 0,
+          });
+        }
       }
 
-      // Map orders by status
-      const statusChartData = Object.entries(ordersByStatus || {}).map(([status, count]) => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' '),
-        value: count,
-        status,
-      }));
+      // Map orders by status - handle both array and object formats from backend
+      let statusChartData = [];
+      if (Array.isArray(ordersByStatus)) {
+        statusChartData = ordersByStatus.map((item) => ({
+          name: (item._id || item.status || 'unknown').charAt(0).toUpperCase() + (item._id || item.status || 'unknown').slice(1).replace('_', ' '),
+          value: item.count || item.value || 0,
+          status: item._id || item.status || 'unknown',
+        }));
+      } else if (typeof ordersByStatus === 'object') {
+        statusChartData = Object.entries(ordersByStatus).map(([status, count]) => ({
+          name: status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' '),
+          value: count,
+          status,
+        }));
+      }
 
       // Fetch recent orders
       const ordersResponse = await ordersAPI.getAll({ limit: 10 });
@@ -162,48 +179,44 @@ export default function AdminDashboard() {
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Total Users */}
-          <div className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300">
+          <div onClick={() => navigate('/admin/users')} className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
                 <FiUsers className="w-6 h-6 text-blue-600" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
             </div>
             <p className="text-gray-600 text-sm font-poppins">Total Users</p>
             <p className="text-3xl font-bold text-gray-900 mt-2 font-poppins">{data.stats.totalUsers.toLocaleString()}</p>
           </div>
 
           {/* Total Restaurants */}
-          <div className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300">
+          <div onClick={() => navigate('/admin/restaurants')} className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center">
                 <FiShoppingBag className="w-6 h-6 text-green-600" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">+8%</span>
             </div>
             <p className="text-gray-600 text-sm font-poppins">Total Restaurants</p>
             <p className="text-3xl font-bold text-gray-900 mt-2 font-poppins">{data.stats.totalRestaurants.toLocaleString()}</p>
           </div>
 
           {/* Total Orders */}
-          <div className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300">
+          <div onClick={() => navigate('/admin/orders')} className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center">
                 <FiPackage className="w-6 h-6 text-orange-600" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">+15%</span>
             </div>
             <p className="text-gray-600 text-sm font-poppins">Total Orders</p>
             <p className="text-3xl font-bold text-gray-900 mt-2 font-poppins">{data.stats.totalOrders.toLocaleString()}</p>
           </div>
 
           {/* Total Revenue */}
-          <div className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300">
+          <div onClick={() => navigate('/admin/analytics')} className="bg-white rounded-[15px] border border-dashed border-gray-200 p-6 shadow-sm hover:shadow-md hover:translate-y-[-5px] transition-all duration-300 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center">
                 <FiDollarSign className="w-6 h-6 text-purple-600" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">+22%</span>
             </div>
             <p className="text-gray-600 text-sm font-poppins">Total Revenue</p>
             <p className="text-3xl font-bold text-gray-900 mt-2 font-poppins">

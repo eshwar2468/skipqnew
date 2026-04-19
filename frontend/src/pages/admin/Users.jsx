@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiSearch, FiEdit2, FiTrash2, FiChevronDown, FiChevronLeft, FiChevronRight, FiLoader, FiAlertCircle, FiCheckCircle, FiXCircle, FiPlus } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { adminAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function AdminUsers() {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +113,10 @@ export default function AdminUsers() {
             <p className="text-gray-600 text-sm mt-1">Total users: {users.length}</p>
           </div>
           {currentUser?.role === 'super_admin' && (
-            <button className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition">
+            <button
+              onClick={() => navigate('/admin/settings', { state: { tab: 'create-admin' } })}
+              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition"
+            >
               <FiPlus className="w-5 h-5" />
               <span>Create Admin</span>
             </button>

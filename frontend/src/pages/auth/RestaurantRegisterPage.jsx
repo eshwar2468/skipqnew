@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { authAPI } from '../../services/api';
+import LocationPickerButton from '../../components/common/LocationPickerButton';
 
 const CUISINE_OPTIONS = [
   'Indian', 'Chinese', 'Continental', 'Italian', 'Mexican', 'Thai',
@@ -310,6 +311,15 @@ export default function RestaurantRegisterPage() {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Address *</label>
+                    <LocationPickerButton
+                      compact={false}
+                      buttonLabel="Detect Restaurant Location"
+                      onLocationSelect={({ address }) => {
+                        setFormData((prev) => ({ ...prev, restaurantAddress: address }));
+                        if (errors.restaurantAddress) setErrors((prev) => ({ ...prev, restaurantAddress: '' }));
+                      }}
+                      className="mb-2"
+                    />
                     <div className="relative">
                       <FiMapPin className="absolute left-3 top-3 text-gray-400" size={18} />
                       <input type="text" name="restaurantAddress" value={formData.restaurantAddress} onChange={handleChange}

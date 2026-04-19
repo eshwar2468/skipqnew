@@ -19,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import api from '../../services/api';
 import EmptyState from '../../components/common/EmptyState';
+import LocationPickerButton from '../../components/common/LocationPickerButton';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -35,7 +36,9 @@ export default function CartPage() {
     getTotal,
     restaurantData,
     dineInInfo,
+    foodCourtId,
   } = useCart();
+  const isFoodCourt = !!foodCourtId;
 
   const { getCurrentLocation, loading: locationLoading, address: geoAddress } = useGeolocation();
 
@@ -62,9 +65,9 @@ export default function CartPage() {
   // Detect self-service mode from restaurant data, dine-in info, or fetched status
   const isSelfService = restaurantData?.selfService || dineInInfo?.selfService || fetchedSelfService;
 
-  // Auto-fill from QR scan dine-in info if available
+  // Auto-fill from QR scan dine-in info or food court
   const [orderType, setOrderType] = useState(
-    dineInInfo?.orderType || 'delivery',
+    isFoodCourt ? 'dine_in' : (dineInInfo?.orderType || 'delivery'),
   );
   const [dineInTime, setDineInTime] = useState('');
   const [tableNumber, setTableNumber] = useState(
@@ -88,25 +91,29 @@ export default function CartPage() {
       return;
     }
 
-    if (orderType === 'dine_in' && !isSelfService && !dineInTime) {
-      toast.error('Please select a time for dine-in');
-      return;
-    }
+    // Food court orders skip all order type checks — always dine_in counter pickup
+    if (!isFoodCourt) {
+      if (orderType === 'dine_in' && !isSelfService && !dineInTime) {
+        toast.error('Please select a time for dine-in');
+        return;
+      }
 
-    // tableNumber is optional for dine-in (and self-service)
+      // tableNumber is optional for dine-in (and self-service)
 
-    if (orderType === 'delivery' && !selectedAddress) {
-      toast.error('Please select a delivery address');
-      return;
+      if (orderType === 'delivery' && !selectedAddress) {
+        toast.error('Please select a delivery address');
+        return;
+      }
     }
 
     navigate('/checkout', {
       state: {
-        orderType,
-        dineInTime: orderType === 'dine_in' ? dineInTime : null,
-        tableNumber: orderType === 'dine_in' ? tableNumber : null,
+        orderType: isFoodCourt ? 'dine_in' : orderType,
+        dineInTime: !isFoodCourt && orderType === 'dine_in' ? dineInTime : null,
+        tableNumber: !isFoodCourt && orderType === 'dine_in' ? tableNumber : null,
         specialInstructions,
-        deliveryAddress: orderType === 'delivery' ? selectedAddress : null,
+        deliveryAddress: !isFoodCourt && orderType === 'delivery' ? selectedAddress : null,
+        foodCourtId: foodCourtId || null,
       },
     });
   };
@@ -134,8 +141,10 @@ export default function CartPage() {
 
   const subtotal = getSubtotal();
   const tax = getTax();
-  const deliveryFee = orderType === 'delivery' ? getDeliveryFee() : 0;
-  const total = subtotal + tax + deliveryFee;
+  const deliveryFee = (!isFoodCourt && orderType === 'delivery') ? getDeliveryFee() : 0;
+  // Convenience fee: Rs 10 + 18% GST = Rs 11.80
+  const convenienceFee = 11.80;
+  const total = subtotal + tax + deliveryFee + convenienceFee;
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gradient-to-b from-gray-50 to-white">
@@ -165,6 +174,23 @@ export default function CartPage() {
 
             {/* Order Type Selector */}
             <div className="bg-white border-2 border-dashed border-orange-200 rounded-[15px] p-6">
+              {isFoodCourt ? (
+                <>
+                  <h3 className="font-bold text-gray-900 mb-4 text-lg">Food Court Pickup</h3>
+                  <div className="flex items-start gap-4 bg-gradient-to-r from-orange-50 to-orange-100 border-2 border-dashed border-orange-300 rounded-[12px] p-5">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <span className="text-2xl">#</span>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-lg">Counter Pickup with Token</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        After placing your order, you'll receive a token number. Collect your food at the restaurant counter when it's ready.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
               <h3 className="font-bold text-gray-900 mb-4 text-lg">Order Type</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <label className="flex items-center p-4 border-2 border-gray-200 rounded-[12px] cursor-pointer hover:border-primary transition-colors" style={{ borderColor: orderType === 'delivery' ? 'var(--primary, #F2A93E)' : undefined }}>
@@ -306,24 +332,13 @@ export default function CartPage() {
                     </label>
 
                     {/* Use My Location Button */}
-                    <button
-                      type="button"
-                      onClick={handleUseMyLocation}
-                      disabled={locationLoading}
-                      className="w-full mb-3 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-dashed border-blue-200 text-blue-700 font-semibold rounded-[12px] hover:from-blue-100 hover:to-blue-150 transition-all disabled:opacity-50"
-                    >
-                      {locationLoading ? (
-                        <>
-                          <FiLoader className="w-4 h-4 animate-spin" />
-                          <span>Detecting your location...</span>
-                        </>
-                      ) : (
-                        <>
-                          <FiNavigation className="w-4 h-4" />
-                          <span>Use My Current Location</span>
-                        </>
-                      )}
-                    </button>
+                    <LocationPickerButton
+                      buttonLabel="Use My Current Location"
+                      onLocationSelect={({ address }) => {
+                        setSelectedAddress(address);
+                      }}
+                      className="mb-3"
+                    />
 
                     <div className="relative">
                       <textarea
@@ -342,6 +357,8 @@ export default function CartPage() {
                     </div>
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
 
@@ -448,6 +465,10 @@ export default function CartPage() {
                     <span className="font-semibold">₹{deliveryFee.toFixed(2)}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-gray-600">
+                  <span>Convenience Fee (₹10 + GST)</span>
+                  <span className="font-semibold">₹{convenienceFee.toFixed(2)}</span>
+                </div>
               </div>
 
               <div className="flex justify-between text-2xl font-bold text-white bg-gradient-to-r from-primary to-primary-dark p-4 rounded-[12px] mb-6">
@@ -477,8 +498,10 @@ export default function CartPage() {
               <button
                 onClick={handleCheckout}
                 disabled={
-                  (orderType === 'dine_in' && !isSelfService && !dineInTime) ||
-                  (orderType === 'delivery' && !selectedAddress)
+                  !isFoodCourt && (
+                    (orderType === 'dine_in' && !isSelfService && !dineInTime) ||
+                    (orderType === 'delivery' && !selectedAddress)
+                  )
                 }
                 className="w-full bg-gradient-to-r from-primary to-primary-dark text-white font-bold py-3 rounded-[15px] hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >

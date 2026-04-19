@@ -11,6 +11,8 @@ import {
   FiLoader,
   FiChevronDown,
   FiChevronUp,
+  FiChevronLeft,
+  FiChevronRight,
   FiUser,
   FiPhone,
   FiMail,
@@ -21,6 +23,7 @@ import {
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { foodCourtsAPI, restaurantsAPI, adminAPI, menuAPI } from '../../services/api';
+import LocationPickerButton from '../../components/common/LocationPickerButton';
 
 const CUISINE_OPTIONS = [
   'Indian', 'Chinese', 'Continental', 'Italian', 'Mexican', 'Thai',
@@ -41,8 +44,9 @@ export default function FoodCourts() {
     name: '',
     description: '',
     address: '',
-    imageUrl: '',
-    logoUrl: '',
+    image: '',
+    logo: '',
+    location: null,
   });
 
   const [foodCourtRestaurants, setFoodCourtRestaurants] = useState({});
@@ -75,6 +79,10 @@ export default function FoodCourts() {
   const [importErrors, setImportErrors] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
   const [importFileName, setImportFileName] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 9;
 
   useEffect(() => {
     fetchFoodCourts();
@@ -130,8 +138,11 @@ export default function FoodCourts() {
         name: foodCourt.name || '',
         description: foodCourt.description || '',
         address: foodCourt.address || '',
-        imageUrl: foodCourt.imageUrl || '',
-        logoUrl: foodCourt.logoUrl || '',
+        image: foodCourt.image || '',
+        logo: foodCourt.logo || '',
+        location: foodCourt.location?.coordinates
+          ? { lat: foodCourt.location.coordinates[1], lng: foodCourt.location.coordinates[0] }
+          : null,
       });
     } else {
       setEditingId(null);
@@ -139,8 +150,9 @@ export default function FoodCourts() {
         name: '',
         description: '',
         address: '',
-        imageUrl: '',
-        logoUrl: '',
+        image: '',
+        logo: '',
+        location: null,
       });
     }
     setShowModal(true);
@@ -153,8 +165,9 @@ export default function FoodCourts() {
       name: '',
       description: '',
       address: '',
-      imageUrl: '',
-      logoUrl: '',
+      image: '',
+      logo: '',
+      location: null,
     });
   };
 
@@ -168,17 +181,27 @@ export default function FoodCourts() {
 
   const handleSaveFoodCourt = async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
-      toast.error('Please fill in all required fields');
+      toast.error('Please fill in name and address');
       return;
     }
 
     try {
       setLoading(true);
+      // Use detected location if available, otherwise default to Bangalore coordinates
+      const loc = formData.location || { lat: 12.9716, lng: 77.5946 };
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        address: formData.address,
+        image: formData.image,
+        logo: formData.logo,
+        location: loc,
+      };
       if (editingId) {
-        await foodCourtsAPI.update(editingId, formData);
+        await foodCourtsAPI.update(editingId, payload);
         toast.success('Food court updated successfully');
       } else {
-        await foodCourtsAPI.create(formData);
+        await foodCourtsAPI.create(payload);
         toast.success('Food court created successfully');
       }
       handleCloseModal();
@@ -536,6 +559,13 @@ export default function FoodCourts() {
       )
   );
 
+  // Pagination
+  const totalPages = Math.ceil(foodCourts.length / itemsPerPage);
+  const paginatedFoodCourts = foodCourts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white p-6 md:p-8">
       {/* Header */}
@@ -565,16 +595,16 @@ export default function FoodCourts() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {foodCourts.map((foodCourt) => (
+          {paginatedFoodCourts.map((foodCourt) => (
             <div
               key={foodCourt._id || foodCourt.id}
               className="border-2 border-dashed border-orange-200 rounded-[15px] overflow-hidden hover:shadow-lg transition-shadow duration-300 bg-white"
             >
               {/* Image */}
-              {foodCourt.imageUrl && (
+              {foodCourt.image && (
                 <div className="h-40 overflow-hidden bg-gray-200">
                   <img
-                    src={foodCourt.imageUrl}
+                    src={foodCourt.image}
                     alt={foodCourt.name}
                     className="w-full h-full object-cover"
                   />
@@ -591,9 +621,9 @@ export default function FoodCourts() {
                       <p className="line-clamp-1">{foodCourt.address}</p>
                     </div>
                   </div>
-                  {foodCourt.logoUrl && (
+                  {foodCourt.logo && (
                     <img
-                      src={foodCourt.logoUrl}
+                      src={foodCourt.logo}
                       alt="logo"
                       className="w-10 h-10 rounded object-cover"
                     />
@@ -673,6 +703,48 @@ export default function FoodCourts() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between p-4 bg-white border-2 border-dashed border-orange-200 rounded-[15px] mb-8">
+          <p className="text-sm text-gray-600">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, foodCourts.length)} of {foodCourts.length}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FiChevronLeft className="w-4 h-4" />
+              Previous
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded text-sm font-medium transition ${
+                    page === currentPage
+                      ? 'bg-orange-500 text-white'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+              <FiChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -763,6 +835,14 @@ export default function FoodCourts() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Address *
                       </label>
+                      <LocationPickerButton
+                        compact={false}
+                        buttonLabel="Detect Location"
+                        onLocationSelect={({ address }) => {
+                          setNewRestaurant((prev) => ({ ...prev, address }));
+                        }}
+                        className="mb-2"
+                      />
                       <div className="relative">
                         <FiMapPin className="absolute left-3 top-3 text-gray-400" size={16} />
                         <input
@@ -1155,6 +1235,18 @@ export default function FoodCourts() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Address *
                   </label>
+                  <LocationPickerButton
+                    compact={false}
+                    buttonLabel="Detect Location"
+                    onLocationSelect={({ address, lat, lng }) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        address,
+                        location: lat && lng ? { lat, lng } : prev.location,
+                      }));
+                    }}
+                    className="mb-2"
+                  />
                   <input
                     type="text"
                     name="address"
@@ -1163,6 +1255,16 @@ export default function FoodCourts() {
                     placeholder="Enter food court address"
                     className="w-full px-4 py-2 border-2 border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 bg-white"
                   />
+                  {formData.location && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Coordinates: {formData.location.lat.toFixed(4)}, {formData.location.lng.toFixed(4)}
+                    </p>
+                  )}
+                  {!formData.location && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Tip: Use &quot;Detect Location&quot; for auto-coordinates, or just type the address above
+                    </p>
+                  )}
                 </div>
 
                 {/* Image URL */}
@@ -1172,15 +1274,15 @@ export default function FoodCourts() {
                   </label>
                   <input
                     type="url"
-                    name="imageUrl"
-                    value={formData.imageUrl}
+                    name="image"
+                    value={formData.image}
                     onChange={handleFormChange}
                     placeholder="https://example.com/image.jpg"
                     className="w-full px-4 py-2 border-2 border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 bg-white"
                   />
-                  {formData.imageUrl && (
+                  {formData.image && (
                     <img
-                      src={formData.imageUrl}
+                      src={formData.image}
                       alt="preview"
                       className="mt-2 w-full h-32 object-cover rounded-lg"
                       onError={(e) => {
@@ -1197,15 +1299,15 @@ export default function FoodCourts() {
                   </label>
                   <input
                     type="url"
-                    name="logoUrl"
-                    value={formData.logoUrl}
+                    name="logo"
+                    value={formData.logo}
                     onChange={handleFormChange}
                     placeholder="https://example.com/logo.jpg"
                     className="w-full px-4 py-2 border-2 border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 bg-white"
                   />
-                  {formData.logoUrl && (
+                  {formData.logo && (
                     <img
-                      src={formData.logoUrl}
+                      src={formData.logo}
                       alt="logo preview"
                       className="mt-2 w-20 h-20 object-cover rounded-lg"
                       onError={(e) => {

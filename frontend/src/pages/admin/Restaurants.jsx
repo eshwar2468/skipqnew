@@ -6,6 +6,8 @@ import {
   FiSearch,
   FiChevronDown,
   FiChevronUp,
+  FiChevronLeft,
+  FiChevronRight,
   FiLoader,
   FiAlertCircle,
   FiStar,
@@ -23,6 +25,7 @@ import {
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { adminAPI, restaurantsAPI, menuAPI } from '../../services/api';
+import LocationPickerButton from '../../components/common/LocationPickerButton';
 
 const CUISINE_OPTIONS = [
   'Indian', 'Chinese', 'Continental', 'Italian', 'Mexican', 'Thai',
@@ -55,6 +58,7 @@ export default function AdminRestaurants() {
     preparationTime: 30,
     minimumOrder: 100,
     deliveryFee: 50,
+    location: null,
   });
 
   // Clone Menu state
@@ -71,6 +75,10 @@ export default function AdminRestaurants() {
   const [importErrors, setImportErrors] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
   const [importFileName, setImportFileName] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const tabs = ['all', 'pending', 'active', 'inactive'];
 
@@ -147,7 +155,7 @@ export default function AdminRestaurants() {
   const resetCreateForm = () => {
     setNewRestaurant({
       name: '', ownerId: '', address: '', phone: '', email: '',
-      description: '', cuisine: [], preparationTime: 30, minimumOrder: 100, deliveryFee: 50,
+      description: '', cuisine: [], preparationTime: 30, minimumOrder: 100, deliveryFee: 50, location: null,
     });
     setCloneFromId('');
     setCloneSearch('');
@@ -191,27 +199,29 @@ export default function AdminRestaurants() {
     if (!newRestaurant.address.trim()) { toast.error('Restaurant address is required'); return; }
     if (!newRestaurant.phone.trim()) { toast.error('Restaurant phone is required'); return; }
 
-    const phoneRegex = /^[6-9]\d{9}$/;
-    if (!phoneRegex.test(newRestaurant.phone.trim())) {
-      toast.error('Please enter a valid 10-digit phone number');
+    const phoneClean = newRestaurant.phone.trim().replace(/\s+/g, '');
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phoneClean)) {
+      toast.error('Please enter a valid 10-digit phone number (digits only)');
       return;
     }
 
     try {
       setSavingRestaurant(true);
 
+      const loc = newRestaurant.location || { lat: 12.9716, lng: 77.5946 };
       const payload = {
         name: newRestaurant.name.trim(),
         ownerId: newRestaurant.ownerId,
         address: newRestaurant.address.trim(),
-        phone: newRestaurant.phone.trim(),
+        phone: phoneClean,
         email: newRestaurant.email.trim() || undefined,
         description: newRestaurant.description.trim() || undefined,
         cuisine: newRestaurant.cuisine.length > 0 ? newRestaurant.cuisine : ['Other'],
         preparationTime: parseInt(newRestaurant.preparationTime) || 30,
         minimumOrder: parseInt(newRestaurant.minimumOrder) || 100,
         deliveryFee: parseInt(newRestaurant.deliveryFee) || 50,
-        location: { lng: 0, lat: 0 },
+        location: loc,
       };
 
       // Step 1: Create the restaurant
@@ -403,6 +413,13 @@ export default function AdminRestaurants() {
     return matchesSearch;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
+  const paginatedRestaurants = filteredRestaurants.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   // For clone list — use already-loaded restaurants from the page
   const cloneFilteredRestaurants = restaurants.filter((r) =>
     r.name?.toLowerCase().includes(cloneSearch.toLowerCase())
@@ -445,7 +462,7 @@ export default function AdminRestaurants() {
               type="text"
               placeholder="Search by restaurant name or owner..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
           </div>
@@ -456,7 +473,7 @@ export default function AdminRestaurants() {
           {tabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
               className={`px-4 py-2 font-medium text-sm whitespace-nowrap border-b-2 transition ${
                 activeTab === tab
                   ? 'border-[#F2A93E] text-[#F2A93E]'
@@ -470,8 +487,9 @@ export default function AdminRestaurants() {
 
         {/* Restaurants Cards */}
         {filteredRestaurants.length > 0 ? (
+          <>
           <div className="grid grid-cols-1 gap-4">
-            {filteredRestaurants.map((restaurant) => (
+            {paginatedRestaurants.map((restaurant) => (
               <div key={restaurant._id || restaurant.id} className="bg-white border-2 border-dashed border-orange-200 rounded-[15px] shadow-sm overflow-hidden hover:shadow-md transition">
                 <div className="p-6">
                   {/* Header Row */}
@@ -570,6 +588,49 @@ export default function AdminRestaurants() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-4 bg-white border-2 border-dashed border-orange-200 rounded-[15px] mt-4">
+              <p className="text-sm text-gray-600">
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredRestaurants.length)} of {filteredRestaurants.length}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FiChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded text-sm font-medium transition ${
+                        page === currentPage
+                          ? 'bg-[#F2A93E] text-white'
+                          : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                  <FiChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         ) : (
           <div className="bg-white border-2 border-dashed border-orange-200 rounded-[15px] h-64 flex items-center justify-center text-gray-500">
             <div className="text-center">
@@ -802,6 +863,18 @@ export default function AdminRestaurants() {
                 {/* Address */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Address *</label>
+                  <LocationPickerButton
+                    compact={false}
+                    buttonLabel="Detect Location"
+                    onLocationSelect={({ address, lat, lng }) => {
+                      setNewRestaurant((prev) => ({
+                        ...prev,
+                        address: address || prev.address,
+                        location: lat && lng ? { lat, lng } : prev.location,
+                      }));
+                    }}
+                    className="mb-2"
+                  />
                   <div className="relative">
                     <FiMapPin className="absolute left-3 top-3 text-gray-400" size={16} />
                     <input
@@ -809,10 +882,15 @@ export default function AdminRestaurants() {
                       name="address"
                       value={newRestaurant.address}
                       onChange={handleNewRestaurantChange}
-                      placeholder="Restaurant address"
+                      placeholder="Restaurant address (type or use Detect Location)"
                       className="w-full pl-9 pr-3 py-2 border-2 border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 bg-white"
                     />
                   </div>
+                  {newRestaurant.location && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Coordinates: {newRestaurant.location.lat.toFixed(4)}, {newRestaurant.location.lng.toFixed(4)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Phone */}

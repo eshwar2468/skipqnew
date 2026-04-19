@@ -176,12 +176,13 @@ export default function RestaurantLoginPage() {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-sm font-semibold text-gray-700">Password</label>
-                  <Link
-                    to="#"
+                  <button
+                    type="button"
+                    onClick={() => toast('Please contact the admin to reset your password.', { icon: 'ℹ️' })}
                     className="text-sm text-amber-600 hover:text-amber-700 transition-colors font-medium"
                   >
                     Forgot?
-                  </Link>
+                  </button>
                 </div>
                 <div className="relative group">
                   <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#1a1a2e] transition-colors" />
